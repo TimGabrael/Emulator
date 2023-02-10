@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title>Wasm example</title>
+    <style>
+      html{
+        margin: 0;
+        padding: 0;
+      }
+      body{
+        margin: 0;
+      }
+
+      #canvas{
+        margin: 0;
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
+  </head>
+
+  <body id="body" style="background-color: black; display: flex; align-items: center; align-content: center;">
+   
+    <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+  </body>
+
+   
+
+
+
+
+
+<script>
+    var Module = {
+    preRun: [],
+    postRun: [],
+    canvas: (function() {
+      var canvas = document.getElementById('canvas');
+      canvas.addEventListener("webglcontextlost", function(e) { alert('WebGL context lost. You will need to reload the page.'); e.preventDefault(); }, false);
+      return canvas;
+    })(),
+  };
+
+  var canvas = document.getElementById('canvas');
+
+// Optional.   Show the copy icon when dragging over.  Seems to only work for chrome.
+canvas.addEventListener('dragover', function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+});
+
+canvas.addEventListener('drop', function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    var files = e.dataTransfer.files; // Array of all files
+
+    for (var i=0, file; file=files[i]; i++) {
+        
+          var reader = new FileReader();
+          reader.onload = function(e2) {
+              console.log(e2.target.result);
+              var data = new Uint8Array(reader.result);
+            Module['FS_createDataFile']('/', 'nes_file.nes', data, true, true, true);
+              Module.ccall('AddFile', null, [], null);
+          }
+          reader.readAsArrayBuffer(file); // start reading the file data.
+        
+    }
+});
+
+
+</script>
+<script async type="text/javascript" src="emu.js">
+
+</script>
+
+
+</html>
