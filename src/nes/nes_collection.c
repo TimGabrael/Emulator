@@ -12,11 +12,11 @@ struct NES* NES_Alloc(struct AppData* app)
 	if (!out) return 0;
 	memset(out, 0, sizeof(struct NES));
 
-	out->cpu = CPU_Alloc();
-	out->ppu = PPU_Alloc();
+	out->cpu = NES_CPU_Alloc();
+	out->ppu = NES_PPU_Alloc();
 	out->bus = (struct DataBus*)malloc(sizeof(struct DataBus));
 	if (!out->bus) return 0;
-	DBus_Init(out->bus, out->ppu, out->cpu);
+	NES_DBus_Init(out->bus, out->ppu, out->cpu);
 
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
 	out->texture = SDL_CreateTexture(app->renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING, 256, 240);
@@ -28,15 +28,15 @@ void NES_Free(struct NES** nes)
 	if (nes && *nes)
 	{
 		struct NES* n = *nes;
-		if (n->cart) Cart_Free(&n->cart);
+		if (n->cart) NES_Cart_Free(&n->cart);
 
 		SDL_DestroyTexture(n->texture);
-		DBus_Uninit(n->bus);
+		NES_DBus_Uninit(n->bus);
 		free(n->bus);
 		n->bus = 0;
 
-		CPU_Free(&n->cpu);
-		PPU_Free(&n->ppu);
+		NES_CPU_Free(&n->cpu);
+		NES_PPU_Free(&n->ppu);
 
 
 		free(*nes);
@@ -74,7 +74,7 @@ uint8_t NES_Tick(struct AppData* app, struct NES* nes, float dt)
 		if (nes->cart)
 		{
 			do {
-				DBus_Clock(nes->bus);
+				NES_DBus_Clock(nes->bus);
 			} while (!nes->ppu->is_frame_complete);
 			nes->ppu->is_frame_complete = 0;
 
@@ -86,10 +86,10 @@ uint8_t NES_Tick(struct AppData* app, struct NES* nes, float dt)
 
 uint8_t NES_LoadFile(struct NES* nes, const char* filename)
 {
-	if (nes->cart) Cart_Free(&nes->cart);
-	nes->cart = Cart_AllocFromFile(filename);
-	DBus_InsertCartridge(nes->bus, nes->cart);
-	DBus_Reset(nes->bus);
+	if (nes->cart) NES_Cart_Free(&nes->cart);
+	nes->cart = NES_Cart_AllocFromFile(filename);
+	NES_DBus_InsertCartridge(nes->bus, nes->cart);
+	NES_DBus_Reset(nes->bus);
 
 	if (nes->cart)
 	{
@@ -99,9 +99,9 @@ uint8_t NES_LoadFile(struct NES* nes, const char* filename)
 }
 uint8_t NES_Load(struct NES* nes, uint8_t* data, int sz)
 {
-	nes->cart = Cart_Alloc(data, sz);
-	DBus_InsertCartridge(nes->bus, nes->cart);
-	DBus_Reset(nes->bus);
+	nes->cart = NES_Cart_Alloc(data, sz);
+	NES_DBus_InsertCartridge(nes->bus, nes->cart);
+	NES_DBus_Reset(nes->bus);
 	if (nes->cart) return 1;
 	return 0;
 }

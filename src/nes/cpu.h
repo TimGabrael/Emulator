@@ -36,15 +36,15 @@ struct CPU
 
 };
 
-struct CPU* CPU_Alloc();
-void CPU_Free(struct CPU** cpu);
+struct CPU* NES_CPU_Alloc();
+void NES_CPU_Free(struct CPU** cpu);
 
-void CPU_Reset(struct CPU* cpu);
+void NES_CPU_Reset(struct CPU* cpu);
 
 // interrupt request
-void CPU_IRQ(struct CPU* cpu);
+void NES_CPU_IRQ(struct CPU* cpu);
 // NonMaskable interrupt
-void CPU_NMI(struct CPU* cpu);
+void NES_CPU_NMI(struct CPU* cpu);
 
-void CPU_Clock(struct CPU* cpu);
-int CPU_IsComplete(struct CPU* cpu);
+void NES_CPU_Clock(struct CPU* cpu);
+int NES_CPU_IsComplete(struct CPU* cpu);

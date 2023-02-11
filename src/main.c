@@ -3,8 +3,10 @@
 #include "Helper.h"
 #include "AppData.h"
 #include "nes/nes_collection.h"
+#include "ps1/ps1_collection.h"
 
 struct NES* nes = 0;
+struct PS1* ps1 = 0;
 int EmulatorMain(int w, int h)
 {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
@@ -14,8 +16,8 @@ int EmulatorMain(int w, int h)
 
     struct AppData* app = AD_Alloc(w, h);
 
-    nes = NES_Alloc(app);
-
+    //nes = NES_Alloc(app);
+    ps1 = PS1_Alloc(app);
     
     uint64_t prev = SDL_GetTicks64();
     uint8_t should_close = 0;
@@ -44,8 +46,9 @@ int EmulatorMain(int w, int h)
         float dt = (now - prev) * 0.01f;
 
         prev = now;
-        NES_Tick(app, nes, dt);
-        
+        //NES_Tick(app, nes, dt);
+        PS1_Tick(app, ps1, dt);
+
         SDL_RenderPresent(app->renderer);
 #ifdef EMSCRIPTEN
         emscripten_sleep(0);

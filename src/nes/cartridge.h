@@ -24,12 +24,12 @@ struct Cartridge
 	struct Mapper* mapper;
 };
 
-struct Cartridge* Cart_AllocFromFile(const char* filename);
-struct Cartridge* Cart_Alloc(uint8_t* data, int sz);
-void Cart_Free(struct Cartridge** cart);
+struct Cartridge* NES_Cart_AllocFromFile(const char* filename);
+struct Cartridge* NES_Cart_Alloc(uint8_t* data, int sz);
+void NES_Cart_Free(struct Cartridge** cart);
 
-uint8_t Cart_CpuRead(struct Cartridge* cart, uint16_t addr, uint8_t* data);
-uint8_t Cart_CpuWrite(struct Cartridge* cart, uint16_t addr, uint8_t data);
+uint8_t NES_Cart_CpuRead(struct Cartridge* cart, uint16_t addr, uint8_t* data);
+uint8_t NES_Cart_CpuWrite(struct Cartridge* cart, uint16_t addr, uint8_t data);
 
-uint8_t Cart_PpuRead(struct Cartridge* cart, uint16_t addr, uint8_t* data);
-uint8_t Cart_PpuWrite(struct Cartridge* cart, uint16_t addr, uint8_t data);
+uint8_t NES_Cart_PpuRead(struct Cartridge* cart, uint16_t addr, uint8_t* data);
+uint8_t NES_Cart_PpuWrite(struct Cartridge* cart, uint16_t addr, uint8_t data);

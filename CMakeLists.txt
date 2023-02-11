@@ -15,6 +15,8 @@ function(embed_resource resource_file_name source_file_name variable_name)
     file(WRITE "${source_file_name}" "${source}")
 endfunction()
 
+embed_resource("data/ps1-bios/SCPH1001.BIN" "data/PS1_BIOS.h" "PS1_BIOS")
+
 if(WIN32)
 	set(SDL2_INCLUDE_DIRS ${CMAKE_CURRENT_LIST_DIR}/SDL2/include)
 

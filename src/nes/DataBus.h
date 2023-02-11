@@ -24,12 +24,12 @@ struct DataBus
 };
 
 
-void DBus_Init(struct DataBus* bus, struct PPU* ppu, struct CPU* cpu);
-void DBus_Uninit(struct DataBus* bus);
+void NES_DBus_Init(struct DataBus* bus, struct PPU* ppu, struct CPU* cpu);
+void NES_DBus_Uninit(struct DataBus* bus);
 
-uint8_t DBus_CPURead(struct DataBus* bus, uint16_t addr, uint8_t isReadOnly);
-void DBus_CPUWrite(struct DataBus* bus, uint16_t addr, uint8_t data);
+uint8_t NES_DBus_CPURead(struct DataBus* bus, uint16_t addr, uint8_t isReadOnly);
+void NES_DBus_CPUWrite(struct DataBus* bus, uint16_t addr, uint8_t data);
 
-void DBus_InsertCartridge(struct DataBus* bus, struct Cartridge* cart);
-void DBus_Reset(struct DataBus* bus);
-void DBus_Clock(struct DataBus* bus);
+void NES_DBus_InsertCartridge(struct DataBus* bus, struct Cartridge* cart);
+void NES_DBus_Reset(struct DataBus* bus);
+void NES_DBus_Clock(struct DataBus* bus);

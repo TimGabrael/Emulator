@@ -3,6 +3,7 @@
 #include <string.h>
 #include <memory.h>
 #include <stdlib.h>
+#include <SDL2/SDL.h>
 
 #define _USE_MATH_DEFINES
 #include <math.h>

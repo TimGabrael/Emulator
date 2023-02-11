@@ -1,7 +1,7 @@
 #include "cartridge.h"
 #include "mapper.h"
 
-struct Cartridge* Cart_AllocFromFile(const char* filename)
+struct Cartridge* NES_Cart_AllocFromFile(const char* filename)
 {
 	FILE* fp = fopen(filename, "rb");
 	if (!fp) return 0;
@@ -18,11 +18,11 @@ struct Cartridge* Cart_AllocFromFile(const char* filename)
 	fread(data, sz, 1, fp);
 	fclose(fp);
 
-	struct Cartridge* cart = Cart_Alloc(data, sz);
+	struct Cartridge* cart = NES_Cart_Alloc(data, sz);
 	free(data);
 	return cart;
 }
-struct Cartridge* Cart_Alloc(uint8_t* data, int sz)
+struct Cartridge* NES_Cart_Alloc(uint8_t* data, int sz)
 {
 	struct Cartridge* cart = (struct Cartridge*)malloc(sizeof(struct Cartridge));
 	if (!cart) { return 0; }
@@ -76,7 +76,7 @@ struct Cartridge* Cart_Alloc(uint8_t* data, int sz)
 	switch (cart->mapper_id)
 	{
 	case 0:
-		cart->mapper = MAP_Alloc000(cart->prog_banks, cart->chr_banks);
+		cart->mapper = NES_MAP_Alloc000(cart->prog_banks, cart->chr_banks);
 		break;
 	default:
 		break;
@@ -85,14 +85,14 @@ struct Cartridge* Cart_Alloc(uint8_t* data, int sz)
 	cart->is_image_valid = 1;
 	return cart;
 }
-void Cart_Free(struct Cartridge** cart)
+void NES_Cart_Free(struct Cartridge** cart)
 {
 	if (cart && *cart)
 	{
 		struct Cartridge* c = *cart;
 		if (c->mapper)
 		{
-			MAP_Free(&c->mapper);
+			NES_MAP_Free(&c->mapper);
 		}
 		if (c->v_prog_memory) free(c->v_prog_memory);
 		c->v_prog_memory = 0; c->v_prog_size = 0;
@@ -104,7 +104,7 @@ void Cart_Free(struct Cartridge** cart)
 	}
 }
 
-uint8_t Cart_CpuRead(struct Cartridge* cart, uint16_t addr, uint8_t* data)
+uint8_t NES_Cart_CpuRead(struct Cartridge* cart, uint16_t addr, uint8_t* data)
 {
 	uint32_t mapped_addr = 0;
 	if (cart->mapper->cpu_map_read(cart->mapper, addr, &mapped_addr) && cart->v_prog_size > 0)
@@ -114,7 +114,7 @@ uint8_t Cart_CpuRead(struct Cartridge* cart, uint16_t addr, uint8_t* data)
 	}
 	return 0;
 }
-uint8_t Cart_CpuWrite(struct Cartridge* cart, uint16_t addr, uint8_t data)
+uint8_t NES_Cart_CpuWrite(struct Cartridge* cart, uint16_t addr, uint8_t data)
 {
 	uint32_t mapped_addr = 0;
 	if (cart->mapper->cpu_map_write(cart->mapper, addr, &mapped_addr, data) && cart->v_prog_size > 0)
@@ -125,7 +125,7 @@ uint8_t Cart_CpuWrite(struct Cartridge* cart, uint16_t addr, uint8_t data)
 	return 0;
 }
 
-uint8_t Cart_PpuRead(struct Cartridge* cart, uint16_t addr, uint8_t* data)
+uint8_t NES_Cart_PpuRead(struct Cartridge* cart, uint16_t addr, uint8_t* data)
 {
 	uint32_t mapped_addr = 0;
 	if (cart->mapper->ppu_map_read(cart->mapper, addr, &mapped_addr) && cart->v_chr_size > 0)
@@ -135,7 +135,7 @@ uint8_t Cart_PpuRead(struct Cartridge* cart, uint16_t addr, uint8_t* data)
 	}
 	return 0;
 }
-uint8_t Cart_PpuWrite(struct Cartridge* cart, uint16_t addr, uint8_t data)
+uint8_t NES_Cart_PpuWrite(struct Cartridge* cart, uint16_t addr, uint8_t data)
 {
 	uint32_t mapped_addr = 0;
 	if (cart->mapper->ppu_map_write(cart->mapper, addr, &mapped_addr) && cart->v_chr_size > 0)

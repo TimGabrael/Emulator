@@ -45,7 +45,7 @@ static uint8_t __stdcall Mapper000PpuWrite(struct Mapper* map, uint16_t addr, ui
 	return 0;
 }
 
-struct Mapper* MAP_Alloc000(uint8_t prg_banks, uint8_t chr_banks)
+struct Mapper* NES_MAP_Alloc000(uint8_t prg_banks, uint8_t chr_banks)
 {
 	struct Mapper* result = (struct Mapper*)malloc(sizeof(struct Mapper));
 	if (!result) return 0;
@@ -58,7 +58,7 @@ struct Mapper* MAP_Alloc000(uint8_t prg_banks, uint8_t chr_banks)
 	result->ppu_map_write = Mapper000PpuWrite;
 	return result;
 }
-void MAP_Free(struct Mapper** mapper)
+void NES_MAP_Free(struct Mapper** mapper)
 {
 	if (mapper && *mapper)
 	{

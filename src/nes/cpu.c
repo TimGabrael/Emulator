@@ -159,11 +159,11 @@ static const struct Instruction OPCODE_LIST[256] = {
 
 static uint8_t CPU_Read(struct CPU* cpu, uint16_t addr)
 {
-	return DBus_CPURead(cpu->bus, addr, 0);
+	return NES_DBus_CPURead(cpu->bus, addr, 0);
 }
 static void CPU_Write(struct CPU* cpu, uint16_t addr, uint8_t data)
 {
-	DBus_CPUWrite(cpu->bus, addr, data);
+	NES_DBus_CPUWrite(cpu->bus, addr, data);
 }
 static uint8_t CPU_Fetch(struct CPU* cpu)
 {
@@ -172,14 +172,14 @@ static uint8_t CPU_Fetch(struct CPU* cpu)
 }
 
 
-struct CPU* CPU_Alloc()
+struct CPU* NES_CPU_Alloc()
 {
 	struct CPU* added = malloc(sizeof(struct CPU));
 	if (!added) return NULL;
 	memset(added, 0, sizeof(struct CPU));
 	return added;
 }
-void CPU_Free(struct CPU** cpu)
+void NES_CPU_Free(struct CPU** cpu)
 {
 	if (cpu && *cpu)
 	{
@@ -188,7 +188,7 @@ void CPU_Free(struct CPU** cpu)
 	}
 }
 
-void CPU_Reset(struct CPU* cpu)
+void NES_CPU_Reset(struct CPU* cpu)
 {
 	cpu->addr_abs = 0xFFFC;
 	const uint16_t lo = CPU_Read(cpu, cpu->addr_abs + 0);
@@ -207,7 +207,7 @@ void CPU_Reset(struct CPU* cpu)
 
 	cpu->cycles = 8;
 }
-void CPU_IRQ(struct CPU* cpu)
+void NES_CPU_IRQ(struct CPU* cpu)
 {
 	if (GetFlag(ID) == 0)
 	{
@@ -230,7 +230,7 @@ void CPU_IRQ(struct CPU* cpu)
 		cpu->cycles = 7;
 	}
 }
-void CPU_NMI(struct CPU* cpu)
+void NES_CPU_NMI(struct CPU* cpu)
 {
 	CPU_Write(cpu, 0x0100 + cpu->sp, (cpu->pc >> 8) & 0x00FF);
 	cpu->sp--;
@@ -250,7 +250,7 @@ void CPU_NMI(struct CPU* cpu)
 
 	cpu->cycles = 8;
 }
-void CPU_Clock(struct CPU* cpu)
+void NES_CPU_Clock(struct CPU* cpu)
 {
 	if (cpu->cycles == 0)
 	{
@@ -270,7 +270,7 @@ void CPU_Clock(struct CPU* cpu)
 	cpu->clock_count++;
 	cpu->cycles--;
 }
-int CPU_IsComplete(struct CPU* cpu)
+int NES_CPU_IsComplete(struct CPU* cpu)
 {
 	return cpu->cycles == 0;
 }

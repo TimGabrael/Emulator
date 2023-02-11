@@ -4,7 +4,7 @@
 #include "cartridge.h"
 
 
-void DBus_Init(struct DataBus* bus, struct PPU* ppu, struct CPU* cpu)
+void NES_DBus_Init(struct DataBus* bus, struct PPU* ppu, struct CPU* cpu)
 {
 	memset(bus, 0, sizeof(struct DataBus));
 
@@ -13,7 +13,7 @@ void DBus_Init(struct DataBus* bus, struct PPU* ppu, struct CPU* cpu)
 	bus->is_dma_dummy = 1;
 	cpu->bus = bus;
 }
-void DBus_Uninit(struct DataBus* bus)
+void NES_DBus_Uninit(struct DataBus* bus)
 {
 	if (bus)
 	{
@@ -22,11 +22,11 @@ void DBus_Uninit(struct DataBus* bus)
 	}
 }
 
-uint8_t DBus_CPURead(struct DataBus* bus, uint16_t addr, uint8_t isReadOnly)
+uint8_t NES_DBus_CPURead(struct DataBus* bus, uint16_t addr, uint8_t isReadOnly)
 {
 	uint8_t data = 0x00;
 
-	if (bus->cart && Cart_CpuRead(bus->cart, addr, &data))
+	if (bus->cart && NES_Cart_CpuRead(bus->cart, addr, &data))
 	{
 
 	}
@@ -36,7 +36,7 @@ uint8_t DBus_CPURead(struct DataBus* bus, uint16_t addr, uint8_t isReadOnly)
 	}
 	else if (addr >= 0x2000 && addr <= 0x3FFF)
 	{
-		data = PPU_CPURead(bus->ppu, addr & 0x0007, isReadOnly);
+		data = NES_PPU_CPURead(bus->ppu, addr & 0x0007, isReadOnly);
 	}
 	else if (addr >= 0x4016 && addr <= 0x4017)
 	{
@@ -47,9 +47,9 @@ uint8_t DBus_CPURead(struct DataBus* bus, uint16_t addr, uint8_t isReadOnly)
 	return data;
 }
 
-void DBus_CPUWrite(struct DataBus* bus, uint16_t addr, uint8_t data)
+void NES_DBus_CPUWrite(struct DataBus* bus, uint16_t addr, uint8_t data)
 {
-	if (bus->cart && Cart_CpuWrite(bus->cart, addr, data))
+	if (bus->cart && NES_Cart_CpuWrite(bus->cart, addr, data))
 	{
 
 	}
@@ -59,7 +59,7 @@ void DBus_CPUWrite(struct DataBus* bus, uint16_t addr, uint8_t data)
 	}
 	else if (addr >= 0x2000 && addr <= 0x3FFF)
 	{
-		PPU_CPUWrite(bus->ppu, addr & 0x0007, data);
+		NES_PPU_CPUWrite(bus->ppu, addr & 0x0007, data);
 	}
 	else if (addr == 0x4014)
 	{
@@ -73,19 +73,19 @@ void DBus_CPUWrite(struct DataBus* bus, uint16_t addr, uint8_t data)
 	}
 }
 
-void DBus_InsertCartridge(struct DataBus* bus, struct Cartridge* cart)
+void NES_DBus_InsertCartridge(struct DataBus* bus, struct Cartridge* cart)
 {
 	bus->cart = cart;
 	bus->ppu->cart = cart;
 }
-void DBus_Reset(struct DataBus* bus)
+void NES_DBus_Reset(struct DataBus* bus)
 {
-	CPU_Reset(bus->cpu);
+	NES_CPU_Reset(bus->cpu);
 	bus->clock_counter = 0;
 }
-void DBus_Clock(struct DataBus* bus)
+void NES_DBus_Clock(struct DataBus* bus)
 {
-	PPU_Clock(bus->ppu);
+	NES_PPU_Clock(bus->ppu);
 	if (bus->clock_counter % 3 == 0)
 	{
 		if (bus->is_dma_transfer)
@@ -96,7 +96,7 @@ void DBus_Clock(struct DataBus* bus)
 			}
 			else
 			{
-				if (bus->clock_counter % 2 == 0) bus->dma_data = DBus_CPURead(bus, (bus->dma_page << 8) | bus->dma_addr, 0);
+				if (bus->clock_counter % 2 == 0) bus->dma_data = NES_DBus_CPURead(bus, (bus->dma_page << 8) | bus->dma_addr, 0);
 				else {
 					bus->ppu->pOAM[bus->dma_addr] = bus->dma_data;
 					bus->dma_addr = bus->dma_addr + 1;
@@ -110,14 +110,14 @@ void DBus_Clock(struct DataBus* bus)
 		}
 		else
 		{
-			CPU_Clock(bus->cpu);
+			NES_CPU_Clock(bus->cpu);
 		}
 	}
 
 	if (bus->ppu->is_nmi)
 	{
 		bus->ppu->is_nmi = 0;
-		CPU_NMI(bus->cpu);
+		NES_CPU_NMI(bus->cpu);
 	}
 	bus->clock_counter = bus->clock_counter + 1;
 }

@@ -12,21 +12,21 @@ const color DEFAULT_PALLET[64] = {
 
 static color PPU_GetColorFromPaletteRam(struct PPU* ppu, uint8_t pallett, uint8_t pixel)
 {
-	return ppu->pallette[PPU_Read(ppu, (0x3F00 + (pallett << 2) + pixel), 0) & 0x3F];
+	return ppu->pallette[NES_PPU_Read(ppu, (0x3F00 + (pallett << 2) + pixel), 0) & 0x3F];
 }
 
 
-struct PPU* PPU_Alloc()
+struct PPU* NES_PPU_Alloc()
 {
 	struct PPU* result = (struct PPU*)malloc(sizeof(struct PPU));
 	if (!result) return 0;
 	memset(result, 0, sizeof(struct PPU));
 	memcpy(result->pallette, DEFAULT_PALLET, sizeof(DEFAULT_PALLET));
 	result->pOAM = (uint8_t*)result->OAM;
-	PPU_Reset(result);
+	NES_PPU_Reset(result);
 	return result;
 }
-void PPU_Free(struct PPU** ppu)
+void NES_PPU_Free(struct PPU** ppu)
 {
 	if (ppu && *ppu)
 	{
@@ -36,7 +36,7 @@ void PPU_Free(struct PPU** ppu)
 	}
 }
 
-uint8_t PPU_CPURead(struct PPU* ppu, uint16_t addr, uint8_t isReadOnly)
+uint8_t NES_PPU_CPURead(struct PPU* ppu, uint16_t addr, uint8_t isReadOnly)
 {
 	uint8_t data = 0x00;
 
@@ -89,7 +89,7 @@ uint8_t PPU_CPURead(struct PPU* ppu, uint16_t addr, uint8_t isReadOnly)
 			break;
 		case 0x0007: // PPU Data
 			data = ppu->ppu_buffer;
-			ppu->ppu_buffer = PPU_Read(ppu, ppu->vram_addr.reg, 0);
+			ppu->ppu_buffer = NES_PPU_Read(ppu, ppu->vram_addr.reg, 0);
 
 			if (ppu->vram_addr.reg > 0x3F00)
 			{
@@ -101,7 +101,7 @@ uint8_t PPU_CPURead(struct PPU* ppu, uint16_t addr, uint8_t isReadOnly)
 	}
 	return data;
 }
-void PPU_CPUWrite(struct PPU* ppu, uint16_t addr, uint8_t data)
+void NES_PPU_CPUWrite(struct PPU* ppu, uint16_t addr, uint8_t data)
 {
 	switch (addr)
 	{
@@ -149,18 +149,18 @@ void PPU_CPUWrite(struct PPU* ppu, uint16_t addr, uint8_t data)
 		}
 		break;
 	case 0x0007: // PPU Data
-		PPU_Write(ppu, ppu->vram_addr.reg, data);
+		NES_PPU_Write(ppu, ppu->vram_addr.reg, data);
 		ppu->vram_addr.reg += (ppu->control.increment_mode ? 32 : 1);
 		break;
 	}
 }
 
-uint8_t PPU_Read(struct PPU* ppu, uint16_t addr, uint8_t isReadOnly)
+uint8_t NES_PPU_Read(struct PPU* ppu, uint16_t addr, uint8_t isReadOnly)
 {
 	uint8_t data = 0x00;
 	addr &= 0x3FFF;
 
-	if (Cart_PpuRead(ppu->cart, addr, &data))
+	if (NES_Cart_PpuRead(ppu->cart, addr, &data))
 	{
 
 	}
@@ -234,11 +234,11 @@ uint8_t PPU_Read(struct PPU* ppu, uint16_t addr, uint8_t isReadOnly)
 
 	return data;
 }
-void PPU_Write(struct PPU* ppu, uint16_t addr, uint8_t data)
+void NES_PPU_Write(struct PPU* ppu, uint16_t addr, uint8_t data)
 {
 	addr &= 0x3FFF;
 	
-	if (Cart_PpuWrite(ppu->cart, addr, data))
+	if (NES_Cart_PpuWrite(ppu->cart, addr, data))
 	{
 
 	}
@@ -320,7 +320,7 @@ static uint8_t FlipByte(uint8_t b)
 	return b;
 }
 
-void PPU_Clock(struct PPU* ppu)
+void NES_PPU_Clock(struct PPU* ppu)
 {
 #define IncrementScrollX()	if(ppu->mask.render_background || ppu->mask.render_sprites)\
 							{\
@@ -420,19 +420,19 @@ void PPU_Clock(struct PPU* ppu)
 			{
 			case 0:
 				LoadBackgroundShifters();
-				ppu->bg_next_tile_id = PPU_Read(ppu, 0x2000 | (ppu->vram_addr.reg & 0xFFF), 0);
+				ppu->bg_next_tile_id = NES_PPU_Read(ppu, 0x2000 | (ppu->vram_addr.reg & 0xFFF), 0);
 				break;
 			case 2:
-				ppu->bg_next_tile_attrib = PPU_Read(ppu, 0x23C0 | (ppu->vram_addr.nametable_y << 11) | (ppu->vram_addr.nametable_x << 10) | ((ppu->vram_addr.coarse_y >> 2) << 3) | (ppu->vram_addr.coarse_x >> 2), 0);
+				ppu->bg_next_tile_attrib = NES_PPU_Read(ppu, 0x23C0 | (ppu->vram_addr.nametable_y << 11) | (ppu->vram_addr.nametable_x << 10) | ((ppu->vram_addr.coarse_y >> 2) << 3) | (ppu->vram_addr.coarse_x >> 2), 0);
 				if (ppu->vram_addr.coarse_y & 0x2) ppu->bg_next_tile_attrib >>= 4;
 				if (ppu->vram_addr.coarse_x & 0x2) ppu->bg_next_tile_attrib >>= 2;
 				ppu->bg_next_tile_attrib &= 0x3;
 				break;
 			case 4:
-				ppu->bg_next_tile_lsb = PPU_Read(ppu, (ppu->control.pattern_background << 12) + ((uint16_t)ppu->bg_next_tile_id << 4) + (ppu->vram_addr.fine_y), 0);
+				ppu->bg_next_tile_lsb = NES_PPU_Read(ppu, (ppu->control.pattern_background << 12) + ((uint16_t)ppu->bg_next_tile_id << 4) + (ppu->vram_addr.fine_y), 0);
 				break;
 			case 6:
-				ppu->bg_next_tile_msb = PPU_Read(ppu, (ppu->control.pattern_background << 12) + ((uint16_t)ppu->bg_next_tile_id << 4) + (ppu->vram_addr.fine_y) + 8, 0);
+				ppu->bg_next_tile_msb = NES_PPU_Read(ppu, (ppu->control.pattern_background << 12) + ((uint16_t)ppu->bg_next_tile_id << 4) + (ppu->vram_addr.fine_y) + 8, 0);
 				break;
 			case 7:
 				IncrementScrollX();
@@ -450,7 +450,7 @@ void PPU_Clock(struct PPU* ppu)
 		}
 		if (ppu->cycle == 338 || ppu->cycle == 340)
 		{
-			ppu->bg_next_tile_id = PPU_Read(ppu, 0x2000 | (ppu->vram_addr.reg & 0x0FFF), 0);
+			ppu->bg_next_tile_id = NES_PPU_Read(ppu, 0x2000 | (ppu->vram_addr.reg & 0x0FFF), 0);
 		}
 		if (ppu->scanline == -1 && ppu->cycle >= 280 && ppu->cycle < 305)
 		{
@@ -545,8 +545,8 @@ void PPU_Clock(struct PPU* ppu)
 				}
 
 				sprite_pattern_addr_hi = sprite_pattern_addr_lo + 8;
-				sprite_pattern_bits_lo = PPU_Read(ppu, sprite_pattern_addr_lo, 0);
-				sprite_pattern_bits_hi = PPU_Read(ppu, sprite_pattern_addr_hi, 0);
+				sprite_pattern_bits_lo = NES_PPU_Read(ppu, sprite_pattern_addr_lo, 0);
+				sprite_pattern_bits_hi = NES_PPU_Read(ppu, sprite_pattern_addr_hi, 0);
 
 				if (ppu->sprite_scanline[i].attribute & 0x40)
 				{
@@ -690,7 +690,7 @@ void PPU_Clock(struct PPU* ppu)
 	}
 }
 
-void PPU_Reset(struct PPU* ppu)
+void NES_PPU_Reset(struct PPU* ppu)
 {
 	ppu->fine_x = 0x00;
 	ppu->addr_latch = 0x00;
@@ -715,7 +715,7 @@ void PPU_Reset(struct PPU* ppu)
 	ppu->tram_addr.reg = 0x00;
 }
 
-color* PPU_GetPatternTable(struct PPU* ppu, uint8_t i, uint8_t palett)
+color* NES_PPU_GetPatternTable(struct PPU* ppu, uint8_t i, uint8_t palett)
 {
 	for (uint16_t y = 0; y < 16; y++)
 	{
@@ -724,8 +724,8 @@ color* PPU_GetPatternTable(struct PPU* ppu, uint8_t i, uint8_t palett)
 			uint16_t offset = y * 256 + x * 16;
 			for (uint16_t row = 0; row < 8; row++)
 			{
-				uint8_t tilelsb = PPU_Read(ppu, i * 0x1000 + offset + row + 0x00, 0);
-				uint8_t tilemsb = PPU_Read(ppu, i * 0x1000 + offset + row + 0x08, 0);
+				uint8_t tilelsb = NES_PPU_Read(ppu, i * 0x1000 + offset + row + 0x00, 0);
+				uint8_t tilemsb = NES_PPU_Read(ppu, i * 0x1000 + offset + row + 0x08, 0);
 
 				for (uint16_t col = 0; col < 8; col++)
 				{

@@ -17,5 +17,5 @@ struct Mapper
 	uint8_t num_chr_banks;
 };
 
-struct Mapper* MAP_Alloc000(uint8_t prg_banks, uint8_t chr_banks);
-void MAP_Free(struct Mapper** mapper);
+struct Mapper* NES_MAP_Alloc000(uint8_t prg_banks, uint8_t chr_banks);
+void NES_MAP_Free(struct Mapper** mapper);

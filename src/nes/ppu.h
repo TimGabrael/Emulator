@@ -129,17 +129,17 @@ struct PPU
 
 
 
-struct PPU* PPU_Alloc();
-void PPU_Free(struct PPU** ppu);
+struct PPU* NES_PPU_Alloc();
+void NES_PPU_Free(struct PPU** ppu);
 
-uint8_t PPU_CPURead(struct PPU* ppu, uint16_t addr, uint8_t isReadOnly);
-void PPU_CPUWrite(struct PPU* ppu, uint16_t addr, uint8_t data);
+uint8_t NES_PPU_CPURead(struct PPU* ppu, uint16_t addr, uint8_t isReadOnly);
+void NES_PPU_CPUWrite(struct PPU* ppu, uint16_t addr, uint8_t data);
 
-uint8_t PPU_Read(struct PPU* ppu, uint16_t addr, uint8_t isReadOnly);
-void PPU_Write(struct PPU* ppu, uint16_t addr, uint8_t data);
+uint8_t NES_PPU_Read(struct PPU* ppu, uint16_t addr, uint8_t isReadOnly);
+void NES_PPU_Write(struct PPU* ppu, uint16_t addr, uint8_t data);
 
-void PPU_Clock(struct PPU* ppu);
-void PPU_Reset(struct PPU* ppu);
+void NES_PPU_Clock(struct PPU* ppu);
+void NES_PPU_Reset(struct PPU* ppu);
 
 
-color* PPU_GetPatternTable(struct PPU* ppu, uint8_t i, uint8_t palett);
+color* NES_PPU_GetPatternTable(struct PPU* ppu, uint8_t i, uint8_t palett);
