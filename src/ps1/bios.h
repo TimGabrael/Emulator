@@ -10,4 +10,6 @@ struct Bios
 struct Bios* PS1_BIOS_Alloc();
 void PS1_BIOS_Free(struct Bios** bios);
 
-uint32_t PS1_BIOS_Read(struct Bios* bios, uint32_t offset);
+uint32_t PS1_BIOS_Read32(struct Bios* bios, uint32_t offset);
+
+uint8_t PS1_BIOS_Read8(struct Bios* bios, uint32_t offset);

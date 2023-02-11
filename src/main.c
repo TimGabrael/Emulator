@@ -39,7 +39,7 @@ int EmulatorMain(int w, int h)
             else if (event.type == SDL_KEYUP) app->keys[event.key.keysym.scancode] = 0;
         }
 
-        SDL_RenderClear(app->renderer);
+        //SDL_RenderClear(app->renderer);
 
         uint64_t now = SDL_GetTicks64();
 
@@ -49,7 +49,8 @@ int EmulatorMain(int w, int h)
         //NES_Tick(app, nes, dt);
         PS1_Tick(app, ps1, dt);
 
-        SDL_RenderPresent(app->renderer);
+        // leaving this away is just alot faster for now
+        //SDL_RenderPresent(app->renderer);
 #ifdef EMSCRIPTEN
         emscripten_sleep(0);
 #endif

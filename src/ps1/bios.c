@@ -30,11 +30,16 @@ void PS1_BIOS_Free(struct Bios** bios)
 	}
 }
 
-uint32_t PS1_BIOS_Read(struct Bios* bios, uint32_t offset)
+uint32_t PS1_BIOS_Read32(struct Bios* bios, uint32_t offset)
 {
 	const uint32_t b0 = (uint32_t)bios->data[offset + 0];
 	const uint32_t b1 = (uint32_t)bios->data[offset + 1];
 	const uint32_t b2 = (uint32_t)bios->data[offset + 2];
 	const uint32_t b3 = (uint32_t)bios->data[offset + 3];
 	return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
+}
+
+uint8_t PS1_BIOS_Read8(struct Bios* bios, uint32_t offset)
+{
+	return bios->data[offset];
 }
