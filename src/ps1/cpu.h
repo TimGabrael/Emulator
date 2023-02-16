@@ -23,10 +23,12 @@ struct CPU
 	uint32_t cause; // cop0-13
 	uint32_t epc; // cop0-14
 
-	//uint32_t next_instruction;
-
+	
 	uint32_t hi;
 	uint32_t lo;
+
+	uint8_t is_branch;
+	uint8_t is_delay_spot;
 };
 
 

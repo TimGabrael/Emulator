@@ -7,11 +7,15 @@ static uint32_t CPU_Read32(struct CPU* cpu, uint32_t addr)
 }
 static void CPU_Write32(struct CPU* cpu, uint32_t addr, uint32_t val)
 {
-	return PS1_BUS_CpuWrite32(cpu->bus, addr, val);
+	PS1_BUS_CpuWrite32(cpu->bus, addr, val);
+}
+static uint16_t CPU_Read16(struct CPU* cpu, uint32_t addr)
+{
+	return PS1_BUS_CpuRead16(cpu->bus, addr);
 }
 static void CPU_Write16(struct CPU* cpu, uint32_t addr, uint16_t val)
 {
-	return PS1_BUS_CpuWrite16(cpu->bus, addr, val);
+	PS1_BUS_CpuWrite16(cpu->bus, addr, val);
 }
 static uint8_t CPU_Read8(struct CPU* cpu, uint32_t addr)
 {
@@ -19,12 +23,18 @@ static uint8_t CPU_Read8(struct CPU* cpu, uint32_t addr)
 }
 static void CPU_Write8(struct CPU* cpu, uint32_t addr, uint8_t val)
 {
-	return PS1_BUS_CpuWrite8(cpu->bus, addr, val);
+	PS1_BUS_CpuWrite8(cpu->bus, addr, val);
 }
 
 static enum Exception
 {
-	SYSCALL = 0x8,
+	EX_LOAD_ADDRESS_ERROR = 0x4,
+	EX_STORE_ADDRESS_ERROR = 0x5,
+	EX_SYSCALL = 0x8,
+	EX_BREAK = 0x9,
+	EX_ILLEGAL_INSTRUCTION = 0xA,
+	EX_COPROCESSOR_ERROR = 0xB,
+	EX_OVERFLOW = 0xC,
 };
 
 #define IMM(i) (i & 0xFFFF)
@@ -46,7 +56,8 @@ static void CPU_BRANCH(struct CPU* cpu, uint32_t offset)
 	// offset immediates are always shifted two places to the right since PC 
 	// is always aligned on 32 bits
 	offset = offset << 2;
-	cpu->next_pc = cpu->next_pc + offset - 4;
+	cpu->next_pc = cpu->pc + offset;
+	cpu->is_branch = 1;
 }
 static void CPU_Exception(struct CPU* cpu, enum Exception cause)
 {
@@ -58,6 +69,10 @@ static void CPU_Exception(struct CPU* cpu, enum Exception cause)
 	cpu->sr |= (mode << 2) & 0x3F;
 	cpu->cause = ((uint32_t)cause) << 2;
 	cpu->epc = cpu->current_pc;
+	if (cpu->is_delay_spot) {
+		cpu->epc = cpu->epc - 4;
+		cpu->cause |= (1 << 31);
+	}
 	cpu->pc = handler;
 	cpu->next_pc = cpu->pc + 4;
 }
@@ -85,7 +100,8 @@ static void CPU_STW(struct CPU* cpu, uint32_t instruction)
 	const uint32_t s = ST(instruction);
 	const uint32_t addr = READ_REG(s) + imm;
 	const uint32_t val = READ_REG(t);
-	CPU_Write32(cpu, addr, val);
+	if ((addr % 4) == 0) CPU_Write32(cpu, addr, val);
+	else CPU_Exception(cpu, EX_STORE_ADDRESS_ERROR);
 }
 static void CPU_SLL(struct CPU* cpu, uint32_t instruction)
 {
@@ -107,6 +123,7 @@ static void CPU_JMP(struct CPU* cpu, uint32_t instruction)
 {
 	const uint32_t imm = IMM_JUMP(instruction);
 	cpu->next_pc = (cpu->next_pc & 0xF0000000) | (imm << 2);
+	cpu->is_branch = 1;
 }
 static void CPU_OR(struct CPU* cpu, uint32_t instruction)
 {
@@ -132,7 +149,8 @@ static void COP0_MTC0(struct CPU* cpu, uint32_t instruction)
 		cpu->sr = val;
 		break;
 	case 13:
-		if (val != 0) ERR_MSG("writing non 0 in CAUSE register %x %x\n", cop_reg, val);
+		cpu->cause &= ~0x300;
+		cpu->cause |= (val & 0x300);
 		break;
 	default:
 		ERR_MSG("Unhandled COP0 register %x\n", cop_reg);
@@ -163,6 +181,14 @@ static void COP0_MFC0(struct CPU* cpu, uint32_t instruction)
 	cpu->load.reg = cpu_r;
 	cpu->load.val = val;
 }
+static void COP0_RFE(struct CPU* cpu, uint32_t instruction)
+{
+	if ((instruction & 0x3F) != 0b010000) ERR_MSG("invalid_cop0 instruction");
+	const uint32_t mode = cpu->sr & 0x3F;
+	cpu->sr &= ~0x3F;
+	cpu->sr |= mode >> 2;
+
+}
 static void CPU_COP0(struct CPU* cpu, uint32_t instruction)
 {
 	switch (COP_OP(instruction))
@@ -172,6 +198,9 @@ static void CPU_COP0(struct CPU* cpu, uint32_t instruction)
 		break;
 	case 0b00100:
 		COP0_MTC0(cpu, instruction);
+		break;
+	case 0b10000:
+		COP0_RFE(cpu, instruction);
 		break;
 	default:
 		ERR_MSG("Unhandled COP0 instruction: %x %x\n", instruction, COP_OP(instruction));
@@ -193,9 +222,8 @@ static void CPU_ADDI(struct CPU* cpu, uint32_t instruction)
 	const uint32_t s = ST(instruction);
 	const int32_t is = (int32_t)READ_REG(s);
 	int32_t val = 0;
-	if (!i32_add_overflow(imm, is, &val)) ERR_MSG("UNHANDLED ADD OVERLOW EXCEPTION\n");
-
-	WRITE_REG(t, (uint32_t)val);
+	if (i32_add_overflow(imm, is, &val)) { WRITE_REG(t, (uint32_t)val); }
+	else CPU_Exception(cpu, EX_OVERFLOW);
 }
 static void CPU_LW(struct CPU* cpu, uint32_t instruction)
 {
@@ -204,10 +232,12 @@ static void CPU_LW(struct CPU* cpu, uint32_t instruction)
 	const uint32_t t = TO(instruction);
 	const uint32_t s = ST(instruction);
 	const uint32_t addr = READ_REG(s) + imm;
-	const uint32_t val = CPU_Read32(cpu, addr);
-
-	cpu->load.reg = t;
-	cpu->load.val = val;
+	if ((addr % 4) == 0) {
+		const uint32_t val = CPU_Read32(cpu, addr);
+		cpu->load.reg = t;
+		cpu->load.val = val;
+	}
+	else CPU_Exception(cpu, EX_LOAD_ADDRESS_ERROR);
 }
 static void CPU_STLU(struct CPU* cpu, uint32_t instruction)
 {
@@ -227,7 +257,7 @@ static void CPU_ADDU(struct CPU* cpu, uint32_t instruction)
 }
 static void CPU_SH(struct CPU* cpu, uint32_t instruction)
 {
-	if (cpu->sr & 0x10000 != 0) {
+	if ((cpu->sr & 0x10000) != 0) {
 		LOG("ignore store while cache is isolated");
 		return;
 	}
@@ -236,7 +266,8 @@ static void CPU_SH(struct CPU* cpu, uint32_t instruction)
 	const uint32_t s = ST(instruction);
 	const uint32_t addr = READ_REG(s) + imm;
 	const uint32_t val = READ_REG(t);
-	CPU_Write16(cpu, addr, (uint16_t)val);
+	if ((addr % 2) == 0) CPU_Write16(cpu, addr, (uint16_t)val);
+	else CPU_Exception(cpu, EX_STORE_ADDRESS_ERROR);
 }
 static void CPU_JAL(struct CPU* cpu, uint32_t instruction)
 {
@@ -253,7 +284,7 @@ static void CPU_ANDI(struct CPU* cpu, uint32_t instruction)
 }
 static void CPU_SB(struct CPU* cpu, uint32_t instruction)
 {
-	if (cpu->sr & 0x10000 != 0) {
+	if ((cpu->sr & 0x10000) != 0) {
 		LOG("ignoring store while cache is isolated");
 		return;
 	}
@@ -268,6 +299,7 @@ static void CPU_JR(struct CPU* cpu, uint32_t instruction)
 {
 	const uint32_t s = ST(instruction);
 	cpu->next_pc = READ_REG(s);
+	cpu->is_branch = 1;
 }
 static void CPU_LB(struct CPU* cpu, uint32_t instruction)
 {
@@ -303,10 +335,8 @@ static void CPU_ADD(struct CPU* cpu, uint32_t instruction)
 	const int32_t si = (int32_t)READ_REG(s);
 	const int32_t ti = (int32_t)READ_REG(t);
 	int32_t val = 0;
-	if (!i32_add_overflow(si, ti, &val)) {
-		ERR_MSG("unhandled add overflow");
-	}
-	WRITE_REG(d, (uint32_t)val);
+	if (i32_add_overflow(si, ti, &val)) { WRITE_REG(d, (uint32_t)val); }
+	else CPU_Exception(cpu, EX_OVERFLOW); 
 }
 static void CPU_BGTZ(struct CPU* cpu, uint32_t instruction)
 {
@@ -338,6 +368,7 @@ static void CPU_JALR(struct CPU* cpu, uint32_t instruction)
 	const uint32_t s = ST(instruction);
 	WRITE_REG(d, cpu->next_pc);
 	cpu->next_pc = READ_REG(s);
+	cpu->is_branch = 1;
 }
 static void CPU_BXX(struct CPU* cpu, uint32_t instruction)
 {
@@ -455,12 +486,296 @@ static void CPU_SLT(struct CPU* cpu, uint32_t instruction)
 }
 static void CPU_SYSCALL(struct CPU* cpu, uint32_t instruction)
 {
-	CPU_Exception(cpu, SYSCALL);
+	CPU_Exception(cpu, EX_SYSCALL);
 }
 static void CPU_MTLO(struct CPU* cpu, uint32_t instruction)
 {
 	const uint32_t s = ST(instruction);
 	cpu->lo = READ_REG(s);
+}
+static void CPU_MTHI(struct CPU* cpu, uint32_t instruction)
+{
+	const uint32_t s = ST(instruction);
+	cpu->hi = READ_REG(s);
+}
+static void CPU_LHU(struct CPU* cpu, uint32_t instruction)
+{
+	const uint32_t imm = IMM_SE(instruction);
+	const uint32_t t = TO(instruction);
+	const uint32_t s = ST(instruction);
+	const uint32_t addr = READ_REG(s) + imm;
+	if ((addr % 2) == 0) {
+		const uint16_t val = CPU_Read16(cpu, addr);
+		cpu->load.reg = t;
+		cpu->load.val = (uint32_t)val;
+	}
+	else CPU_Exception(cpu, EX_LOAD_ADDRESS_ERROR);
+}
+static void CPU_SLLV(struct CPU* cpu, uint32_t instruction)
+{
+	const uint32_t d = DR(instruction);
+	const uint32_t s = ST(instruction);
+	const uint32_t t = TO(instruction);
+
+	const uint32_t val = READ_REG(t) << (READ_REG(s) & 0x1F);
+	WRITE_REG(d, val);
+}
+static void CPU_LH(struct CPU* cpu, uint32_t instruction)
+{
+	const uint32_t imm = IMM_SE(instruction);
+	const uint32_t t = TO(instruction);
+	const uint32_t s = ST(instruction);
+	const uint32_t addr = READ_REG(s) + imm;
+	const int16_t val = (int16_t)CPU_Read16(cpu, addr);
+	cpu->load.reg = t;
+	cpu->load.val = (uint32_t)val;
+}
+static void CPU_NOR(struct CPU* cpu, uint32_t instruction)
+{
+	const uint32_t d = DR(instruction);
+	const uint32_t s = ST(instruction);
+	const uint32_t t = TO(instruction);
+	const uint32_t val = !(READ_REG(s) | READ_REG(t));
+	WRITE_REG(d, val);
+}
+static void CPU_SRAV(struct CPU* cpu, uint32_t instruction)
+{
+	const uint32_t d = DR(instruction);
+	const uint32_t s = ST(instruction);
+	const uint32_t t = TO(instruction);
+	const uint32_t val = (uint32_t)(((int32_t)READ_REG(t)) >> (READ_REG(s) & 0x1F));
+	WRITE_REG(d, val);
+}
+static void CPU_SRLV(struct CPU* cpu, uint32_t instruction)
+{
+	const uint32_t d = DR(instruction);
+	const uint32_t s = ST(instruction);
+	const uint32_t t = TO(instruction);
+	const uint32_t val = READ_REG(t) >> (READ_REG(s) & 0x1F);
+	WRITE_REG(d, val);
+}
+static void CPU_MULTU(struct CPU* cpu, uint32_t instruction)
+{
+	const uint32_t s = ST(instruction);
+	const uint32_t t = TO(instruction);
+	const uint64_t v1 = (uint64_t)READ_REG(s);
+	const uint64_t v2 = (uint64_t)READ_REG(t);
+	const uint64_t val = v1 * v2;
+	cpu->hi = (uint32_t)(val >> 32);
+	cpu->lo = (uint32_t)val;
+}
+static void CPU_XOR(struct CPU* cpu, uint32_t instruction)
+{
+	const uint32_t d = DR(instruction);
+	const uint32_t s = ST(instruction);
+	const uint32_t t = TO(instruction);
+	const uint32_t val = READ_REG(s) ^ READ_REG(t);
+	WRITE_REG(d, val);
+}
+static void CPU_BREAK(struct CPU* cpu, uint32_t instruction)
+{
+	CPU_Exception(cpu, EX_BREAK);
+}
+static void CPU_MULT(struct CPU* cpu, uint32_t instruction)
+{
+	const uint32_t s = ST(instruction);
+	const uint32_t t = TO(instruction);
+	const int64_t v1 = (int64_t)((int32_t)READ_REG(s));
+	const int64_t v2 = (int64_t)((int32_t)READ_REG(t));
+	const uint64_t val = (uint64_t)(v1 * v2);
+	cpu->hi = (uint32_t)(val >> 32);
+	cpu->lo = (uint32_t)val;
+}
+static void CPU_SUB(struct CPU* cpu, uint32_t instruction)
+{
+	const uint32_t s = ST(instruction);
+	const uint32_t t = TO(instruction);
+	const uint32_t d = DR(instruction);
+	const int32_t si = (int32_t)READ_REG(s);
+	const int32_t ti = (int32_t)READ_REG(t);
+	int32_t val = 0;
+	if (i32_add_overflow(si, -ti, &val))
+	{
+		WRITE_REG(d, (uint32_t)val);
+	}
+	else
+	{
+		CPU_Exception(cpu, EX_OVERFLOW);
+	}
+}
+static void CPU_XORI(struct CPU* cpu, uint32_t instruction)
+{
+	const uint32_t imm = IMM(instruction);
+	const uint32_t t = TO(instruction);
+	const uint32_t s = ST(instruction);
+	const uint32_t val = READ_REG(s) ^ imm;
+	WRITE_REG(t, val);
+}
+static void CPU_LWL(struct CPU* cpu, uint32_t instruction)
+{
+	const uint32_t imm = IMM_SE(instruction);
+	const uint32_t t = TO(instruction);
+	const uint32_t s = ST(instruction);
+	const uint32_t addr = READ_REG(s) + imm;
+	const uint32_t cur_val = cpu->out_regs[t];
+	const uint32_t aligned_addr = addr & ~3;
+	const uint32_t aligned_word = CPU_Read32(cpu, aligned_addr);
+	uint32_t val = 0;
+	switch (addr & 3)
+	{
+	case 0:
+		val = (cur_val & 0x00FFFFFF) | (aligned_word << 24);
+		break;
+	case 1:
+		val = (cur_val & 0x0000FFFF) | (aligned_word << 16);
+		break;
+	case 2:
+		val = (cur_val & 0x000000FF) | (aligned_word << 8);
+		break;
+	case 3:
+		val = aligned_word;
+		break;
+	default:
+		break;
+	}
+	cpu->load.reg = t;
+	cpu->load.val = val;
+}
+static void CPU_LWR(struct CPU* cpu, uint32_t instruction)
+{
+	const uint32_t imm = IMM_SE(instruction);
+	const uint32_t t = TO(instruction);
+	const uint32_t s = ST(instruction);
+	const uint32_t addr = READ_REG(s) + imm;
+	const uint32_t cur_val = cpu->out_regs[t];
+	const uint32_t aligned_addr = addr & ~3;
+	const uint32_t aligned_word = CPU_Read32(cpu, aligned_addr);
+	uint32_t val = 0;
+	switch (addr & 3)
+	{
+	case 0:
+		val = aligned_word;
+		break;
+	case 1:
+		val = (cur_val & 0xFF000000) | (aligned_word >> 8);
+		break;
+	case 2:
+		val = (cur_val & 0xFFFF0000) | (aligned_word >> 16);
+		break;
+	case 3:
+		val = (cur_val & 0xFFFFFF00) | (aligned_word >> 24);
+		break;
+	default:
+		break;
+	}
+	cpu->load.reg = t;
+	cpu->load.val = val;
+}
+static void CPU_SWL(struct CPU* cpu, uint32_t instruction)
+{
+	const uint32_t imm = IMM_SE(instruction);
+	const uint32_t t = TO(instruction);
+	const uint32_t s = ST(instruction);
+	const uint32_t addr = READ_REG(s) + imm;
+	const uint32_t val = READ_REG(t);
+	const uint32_t aligned_addr = addr & ~3;
+	const uint32_t cur = CPU_Read32(cpu, aligned_addr);
+	uint32_t write_val = 0;
+	switch (addr & 3)
+	{
+	case 0:
+		write_val = (cur & 0xFFFFFF00) | (val >> 24);
+		break;
+	case 1:
+		write_val = (cur & 0xFFFF0000) | (val >> 16);
+		break;
+	case 2:
+		write_val = (cur & 0xFF000000) | (val >> 8);
+		break;
+	case 3:
+		write_val = val;
+		break;
+	default:
+		break;
+	}
+	CPU_Write32(cpu, addr, write_val);
+}
+static void CPU_SWR(struct CPU* cpu, uint32_t instruction)
+{
+	const uint32_t imm = IMM_SE(instruction);
+	const uint32_t t = TO(instruction);
+	const uint32_t s = ST(instruction);
+	const uint32_t addr = READ_REG(s) + imm;
+	const uint32_t val = READ_REG(t);
+	const uint32_t aligned_addr = addr & ~3;
+	const uint32_t cur = CPU_Read32(cpu, aligned_addr);
+	uint32_t write_val = 0;
+	switch (addr & 3)
+	{
+	case 0:
+		write_val = val;
+		break;
+	case 1:
+		write_val = (cur & 0x000000FF) | (val << 8);
+		break;
+	case 2:
+		write_val = (cur & 0x0000FFFF) | (val << 16);
+		break;
+	case 3:
+		write_val = (cur & 0x00FFFFFF) | (val << 24);
+		break;
+	default:
+		break;
+	}
+	CPU_Write32(cpu, addr, write_val);
+}
+static void CPU_COP1(struct CPU* cpu, uint32_t instruction)
+{
+	CPU_Exception(cpu, EX_COPROCESSOR_ERROR);
+}
+static void CPU_COP3(struct CPU* cpu, uint32_t instruction)
+{
+	CPU_Exception(cpu, EX_COPROCESSOR_ERROR);
+}
+static void CPU_LWC0(struct CPU* cpu, uint32_t instruction)
+{
+	CPU_Exception(cpu, EX_COPROCESSOR_ERROR);
+}
+static void CPU_LWC1(struct CPU* cpu, uint32_t instruction)
+{
+	CPU_Exception(cpu, EX_COPROCESSOR_ERROR);
+}
+static void CPU_LWC3(struct CPU* cpu, uint32_t instruction)
+{
+	CPU_Exception(cpu, EX_COPROCESSOR_ERROR);
+}
+static void CPU_SWC0(struct CPU* cpu, uint32_t instruction)
+{
+	CPU_Exception(cpu, EX_COPROCESSOR_ERROR);
+}
+static void CPU_SWC1(struct CPU* cpu, uint32_t instruction)
+{
+	CPU_Exception(cpu, EX_COPROCESSOR_ERROR);
+}
+static void CPU_SWC3(struct CPU* cpu, uint32_t instruction)
+{
+	CPU_Exception(cpu, EX_COPROCESSOR_ERROR);
+}
+static void CPU_ILLEGAL(struct CPU* cpu, uint32_t instruction)
+{
+	CPU_Exception(cpu, EX_ILLEGAL_INSTRUCTION);
+}
+static void CPU_COP2(struct CPU* cpu, uint32_t instruction)
+{
+	ERR_MSG("unhandled GTE instruction: %x\n", instruction);
+}
+static void CPU_LWC2(struct CPU* cpu, uint32_t instruction)
+{
+	ERR_MSG("unhandled GTE read instruction: %x", instruction);
+}
+static void CPU_SWC2(struct CPU* cpu, uint32_t instruction)
+{
+	ERR_MSG("unhandled GTE write instruction: %x", instruction);
 }
 
 static void CPU_DecodeAndExecute(struct CPU* cpu, uint32_t instruction)
@@ -479,6 +794,15 @@ static void CPU_DecodeAndExecute(struct CPU* cpu, uint32_t instruction)
 		case 0b000011:
 			CPU_SRA(cpu, instruction);
 			break;
+		case 0b000100:
+			CPU_SLLV(cpu, instruction);
+			break;
+		case 0b000110:
+			CPU_SRLV(cpu, instruction);
+			break;
+		case 0b000111:
+			CPU_SRAV(cpu, instruction);
+			break;
 		case 0b001000:
 			CPU_JR(cpu, instruction);
 			break;
@@ -488,14 +812,26 @@ static void CPU_DecodeAndExecute(struct CPU* cpu, uint32_t instruction)
 		case 0b001100:
 			CPU_SYSCALL(cpu, instruction);
 			break;
+		case 0b001101:
+			CPU_BREAK(cpu, instruction);
+			break;
 		case 0b010000:
 			CPU_MFHI(cpu, instruction);
+			break;
+		case 0b010001:
+			CPU_MTHI(cpu, instruction);
 			break;
 		case 0b010010:
 			CPU_MFLO(cpu, instruction);
 			break;
 		case 0b010011:
 			CPU_MTLO(cpu, instruction);
+			break;
+		case 0b011000:
+			CPU_MULT(cpu, instruction);
+			break;
+		case 0b011001: 
+			CPU_MULTU(cpu, instruction);
 			break;
 		case 0b011010:
 			CPU_DIV(cpu, instruction);
@@ -509,6 +845,9 @@ static void CPU_DecodeAndExecute(struct CPU* cpu, uint32_t instruction)
 		case 0b100001:
 			CPU_ADDU(cpu, instruction);
 			break;
+		case 0b100010:
+			CPU_SUB(cpu, instruction);
+			break;
 		case 0b100011:
 			CPU_SUBU(cpu, instruction);
 			break;
@@ -518,6 +857,12 @@ static void CPU_DecodeAndExecute(struct CPU* cpu, uint32_t instruction)
 		case 0b100101:
 			CPU_OR(cpu, instruction);
 			break;
+		case 0b100110:
+			CPU_XOR(cpu, instruction);
+			break;
+		case 0b100111:
+			CPU_NOR(cpu, instruction);
+			break;
 		case 0b101010:
 			CPU_SLT(cpu, instruction);
 			break;
@@ -525,7 +870,7 @@ static void CPU_DecodeAndExecute(struct CPU* cpu, uint32_t instruction)
 			CPU_STLU(cpu, instruction);
 			break;
 		default:
-			ERR_MSG("unhandled sub instruction: %x %x\n", instruction, SUBFUN(instruction));
+			CPU_ILLEGAL(cpu, instruction);
 			break;
 		}
 		break;
@@ -568,14 +913,32 @@ static void CPU_DecodeAndExecute(struct CPU* cpu, uint32_t instruction)
 	case 0b001101:
 		CPU_ORI(cpu, instruction);
 		break;
+	case 0b001110:
+		CPU_XORI(cpu, instruction);
+		break;
 	case 0b001111:
 		CPU_LUI(cpu, instruction);
 		break;
 	case 0b010000:
 		CPU_COP0(cpu, instruction);
 		break;
+	case 0b010001:
+		CPU_COP1(cpu, instruction);
+		break;
+	case 0b010010:
+		CPU_COP2(cpu, instruction);
+		break;
+	case 0b010011:
+		CPU_COP3(cpu, instruction);
+		break;
 	case 0b100000:
 		CPU_LB(cpu, instruction);
+		break;
+	case 0b100001:
+		CPU_LH(cpu, instruction);
+		break;
+	case 0b100010:
+		CPU_LWL(cpu, instruction);
 		break;
 	case 0b100011:
 		CPU_LW(cpu, instruction);
@@ -583,17 +946,53 @@ static void CPU_DecodeAndExecute(struct CPU* cpu, uint32_t instruction)
 	case 0b100100:
 		CPU_LBU(cpu, instruction);
 		break;
+	case 0b100101:
+		CPU_LHU(cpu, instruction);
+		break;
+	case 0b100110:
+		CPU_LWR(cpu, instruction);
+		break;
 	case 0b101000:
 		CPU_SB(cpu, instruction);
 		break;
 	case 0b101001:
 		CPU_SH(cpu, instruction);
 		break;
+	case 0b101010:
+		CPU_SWL(cpu, instruction);
+		break;
 	case 0b101011:
 		CPU_STW(cpu, instruction);
 		break;
+	case 0b101110:
+		CPU_SWR(cpu, instruction);
+		break;
+	case 0b110000:
+		CPU_LWC0(cpu, instruction);
+		break;
+	case 0b110001:
+		CPU_LWC1(cpu, instruction);
+		break;
+	case 0b110010:
+		CPU_LWC2(cpu, instruction);
+		break;
+	case 0b110011:
+		CPU_LWC3(cpu, instruction);
+		break;
+	case 0b111000:
+		CPU_SWC0(cpu, instruction);
+		break;
+	case 0b111001:
+		CPU_SWC1(cpu, instruction);
+		break;
+	case 0b111010:
+		CPU_SWC2(cpu, instruction);
+		break;
+	case 0b111011:
+		CPU_SWC3(cpu, instruction);
+		break;
 	default:
-		ERR_MSG("unhandled instruction: %x %x\n", instruction, FUN(instruction));
+		CPU_ILLEGAL(cpu, instruction);
 		break;
 	}
 }
@@ -626,13 +1025,22 @@ void PS1_CPU_Reset(struct CPU* cpu)
 	cpu->pc = 0xbfc00000;
 	cpu->next_pc = cpu->pc + 4;
 	cpu->sr = 0;
+	cpu->is_branch = 0;
+	cpu->is_delay_spot = 0;
 }
 
 void PS1_CPU_Clock(struct CPU* cpu)
 {
+	cpu->current_pc = cpu->pc;
+	if ((cpu->current_pc % 4) != 0) {
+		CPU_Exception(cpu, EX_LOAD_ADDRESS_ERROR);
+		return;
+	}
 	const uint32_t instruction = CPU_Read32(cpu, cpu->pc);
 	
-	cpu->current_pc = cpu->pc;
+	cpu->is_delay_spot = cpu->is_branch;
+	cpu->is_branch = 0;
+
 	cpu->pc = cpu->next_pc;
 	cpu->next_pc = cpu->next_pc + 4;
 	WRITE_REG(cpu->load.reg, cpu->load.val);

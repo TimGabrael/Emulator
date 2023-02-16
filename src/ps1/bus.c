@@ -17,9 +17,11 @@ static const struct Range CACHECONTROL_RANGE = { 0xFFFE0130, 4 };
 static const struct Range RAM_RANGE = { 0x00000000, RAM_SIZE };
 static const struct Range SPU_RANGE = { 0x1F801C00, 640 };
 static const struct Range EXPANSION_2_RANGE = { 0x1F802000, 66 };
-static const struct Range EXPANSION_1_RANGE = { 0x1F000000, 8 * 1024 };
+static const struct Range EXPANSION_1_RANGE = { 0x1F000000, 512 * 1024 };
 static const struct Range IRQ_CONTROL_RANGE = { 0x1F801070, 8 };
-static const struct Range TIMERS_RANGE = { 0x1F801100, 0x2C };
+static const struct Range TIMERS_RANGE = { 0x1F801100, 0x30 };
+static const struct Range DMA_RANGE = { 0x1F801080, 0x80 };
+static const struct Range GPU_RANGE = { 0x1f801810, 8 };
 
 
 const uint32_t REGION_MASK[8] = {
@@ -42,7 +44,7 @@ static uint8_t R_Contains(const struct Range* range, uint32_t addr, uint32_t* ou
 {
 	if (addr >= range->start && addr < (range->start + range->length))
 	{
-		*out = addr - range->start;
+		*out = (addr - range->start);
 		return 1;
 	}
 	return 0;
@@ -82,6 +84,15 @@ uint32_t PS1_BUS_CpuRead32(struct Bus* bus, uint32_t addr)
 		LOG("read from IRQ_CONTROL\n");
 		return 0;
 	}
+	else if (R_Contains(&DMA_RANGE, addr, &mapped)) {
+		LOG("DMA_read: %x\n", addr);
+		return 0;
+	}
+	else if (R_Contains(&GPU_RANGE, addr, &mapped)) {
+		LOG("GPU_read: %x\n", addr);
+		if (mapped == 4) return 0x10000000;
+		else return 0;
+	}
 	// SHOULD NEVER REACH THIS POINT!
 	ERR_MSG("read32 from unkown %x\n", addr);
 	return -1;
@@ -116,11 +127,35 @@ void PS1_BUS_CpuWrite32(struct Bus* bus, uint32_t addr, uint32_t val)
 	else if (R_Contains(&IRQ_CONTROL_RANGE, addr, &mapped)) {
 		LOG("IRQ_control: %x <- %x\n", mapped, val);
 	}
+	else if (R_Contains(&DMA_RANGE, addr, &mapped)) {
+		LOG("DMA_write: %x %x\n", addr, val);
+	}
+	else if (R_Contains(&GPU_RANGE, addr, &mapped)) {
+		LOG("GPU_write: %x %x\n", addr, val);
+	}
+	else if (R_Contains(&TIMERS_RANGE, addr, &mapped)) {
+		LOG("Timers_write: %x %x\n", addr, val);
+	}
 	else {
 		ERR_MSG("write32 to unkown %x\n", addr);
 	}
 }
 
+uint16_t PS1_BUS_CpuRead16(struct Bus* bus, uint32_t addr)
+{
+	addr = R_Mask(addr);
+	uint32_t mapped = 0;
+	if (R_Contains(&RAM_RANGE, addr, &mapped)) return PS1_RAM_Read16(bus->ram, mapped);
+	else if (R_Contains(&SPU_RANGE, addr, &mapped)) {
+		// TODO: read from spu
+		return 0;
+	}
+	else if (R_Contains(&IRQ_CONTROL_RANGE, addr, &mapped)) {
+		LOG("IRG_control_read: %x\n", addr);
+		return 0;
+	}
+	ERR_MSG("unhandled read16 from: %x\n", addr);
+}
 void PS1_BUS_CpuWrite16(struct Bus* bus, uint32_t addr, uint16_t val)
 {
 	if (addr % 2 != 0)	{
@@ -134,6 +169,9 @@ void PS1_BUS_CpuWrite16(struct Bus* bus, uint32_t addr, uint16_t val)
 	}
 	else if (R_Contains(&TIMERS_RANGE, addr, &mapped)) {
 		// TODO: write to timers
+	}
+	else if (R_Contains(&IRQ_CONTROL_RANGE, addr, &mapped)) {
+		LOG("IRQ_control_write: %x %x\n", addr, val);
 	}
 	else {
 		ERR_MSG("unhandled write16 address %x\n", addr);
