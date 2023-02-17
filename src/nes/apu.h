@@ -102,3 +102,4 @@ void NES_APU_Clock(struct APU* apu);
 
 
 void NES_APU_CPUWrite(struct APU* apu, uint16_t addr, uint8_t val);
+void NES_APU_Reset(struct APU* apu);

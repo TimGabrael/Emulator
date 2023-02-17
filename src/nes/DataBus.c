@@ -102,22 +102,30 @@ void NES_DBus_InsertCartridge(struct DataBus* bus, struct Cartridge* cart)
 void NES_DBus_Reset(struct DataBus* bus)
 {
 	NES_CPU_Reset(bus->cpu);
+	NES_PPU_Reset(bus->cpu);
+	NES_APU_Reset(bus->apu);
 	bus->clock_counter = 0;
+	bus->dma_page = 0;
+	bus->dma_addr = 0;
+	bus->dma_data = 0;
+	bus->is_dma_dummy = 1;
+	bus->is_dma_transfer = 0;
 }
 void NES_DBus_Clock(struct DataBus* bus)
 {
 	NES_PPU_Clock(bus->ppu);
 	if (bus->clock_counter % 3 == 0)
 	{
+		NES_APU_Clock(bus->apu);
 		if (bus->is_dma_transfer)
 		{
 			if (bus->is_dma_dummy)
 			{
-				if (bus->clock_counter % 2 == 1) bus->is_dma_dummy = 0;
+				if ((bus->clock_counter % 2) == 1) bus->is_dma_dummy = 0;
 			}
 			else
 			{
-				if (bus->clock_counter % 2 == 0) bus->dma_data = NES_DBus_CPURead(bus, (bus->dma_page << 8) | bus->dma_addr, 0);
+				if ((bus->clock_counter % 2) == 0) bus->dma_data = NES_DBus_CPURead(bus, (bus->dma_page << 8) | bus->dma_addr, 0);
 				else {
 					bus->ppu->pOAM[bus->dma_addr] = bus->dma_data;
 					bus->dma_addr = bus->dma_addr + 1;
@@ -131,11 +139,7 @@ void NES_DBus_Clock(struct DataBus* bus)
 		}
 		else
 		{
-			int start_cycles = bus->cpu->cycles;
 			NES_CPU_Clock(bus->cpu);
-			int num_cycles = bus->cpu->cycles - start_cycles + 1;
-			//LOG("num_cycles: %d\n", num_cycles);
-			NES_APU_Clock(bus->apu);
 		}
 	}
 

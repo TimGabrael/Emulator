@@ -15,7 +15,8 @@ int EmulatorMain(int w, int h)
 
     struct AppData* app = AD_Alloc(w, h);
     
-    uint64_t prev = SDL_GetTicks64();
+    const float perf_freq_inv = 1.0f / (float)SDL_GetPerformanceFrequency();
+    uint64_t prev = SDL_GetPerformanceCounter();
     uint8_t should_close = 0;
     while (!should_close) {
 
@@ -34,23 +35,19 @@ int EmulatorMain(int w, int h)
             else if (event.type == SDL_KEYDOWN) app->keys[event.key.keysym.scancode] = 1;
             else if (event.type == SDL_KEYUP) app->keys[event.key.keysym.scancode] = 0;
         }
-
+        uint64_t now = SDL_GetPerformanceCounter();
         SDL_RenderClear(app->renderer);
-
-        uint64_t now = SDL_GetTicks64();
-
-        float dt = (now - prev) * 0.01f;
-
+        const float dt = (now - prev) * perf_freq_inv;
         prev = now;
         NES_Tick(app, app->nes, dt);
         //PS1_Tick(app, ps1, dt);
 
-        // leaving this away is just alot faster for now
+        // leaving this away is just alot faster for now (PS1)
         SDL_RenderPresent(app->renderer);
 #ifdef EMSCRIPTEN
         emscripten_sleep(0);
 #endif
-
+        
     }
 
     AD_Free(&app);

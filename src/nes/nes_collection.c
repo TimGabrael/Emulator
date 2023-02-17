@@ -63,14 +63,14 @@ uint8_t NES_Tick(struct AppData* app, struct NES* nes, float dt)
 	nes->bus->controller[0] |= app->keys[SDL_SCANCODE_DOWN] ? 0x04 : 0x00; // DOWN
 	nes->bus->controller[0] |= app->keys[SDL_SCANCODE_LEFT] ? 0x02 : 0x00; // LEFT
 	nes->bus->controller[0] |= app->keys[SDL_SCANCODE_RIGHT] ? 0x01 : 0x00; // RIGHT
-
+	
 	if (nes->timer > 0.0f)
 	{
 		nes->timer -= dt;
 	}
 	else
 	{
-		nes->timer += (1.0 / 60.0f) - dt;
+		nes->timer = nes->timer - dt + (1.0f / 60.0f);
 		if (nes->cart)
 		{
 			do {
@@ -79,9 +79,9 @@ uint8_t NES_Tick(struct AppData* app, struct NES* nes, float dt)
 			nes->ppu->is_frame_complete = 0;
 
 			SDL_UpdateTexture(nes->texture, NULL, nes->ppu->out_screen, 256 * 3);
-			SDL_RenderCopy(app->renderer, nes->texture, NULL, NULL);
 		}
 	}
+	SDL_RenderCopy(app->renderer, nes->texture, NULL, NULL);
 }
 
 uint8_t NES_LoadFile(struct NES* nes, const char* filename)
@@ -90,7 +90,7 @@ uint8_t NES_LoadFile(struct NES* nes, const char* filename)
 	nes->cart = NES_Cart_AllocFromFile(filename);
 	NES_DBus_InsertCartridge(nes->bus, nes->cart);
 	NES_DBus_Reset(nes->bus);
-
+	nes->timer = 0.0f;
 	if (nes->cart)
 	{
 		return 1;

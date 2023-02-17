@@ -336,10 +336,12 @@ void NES_APU_Clock(struct APU* apu)
 		const uint8_t dmc_out = apu->dmc.value;
 		
 		const float output = tnd_table[(3 * tri_output) + (2 * noise_out) + dmc_out] + pulse_table[p1_output + p2_output];
-		
-		apu->buf.data[apu->buf.cur_write] = output;
-		apu->buf.cur_write = (apu->buf.cur_write + 1) % apu->buf.size;
-
+	
+		if (apu->buf.cur_write < apu->buf.size + apu->buf.cur_read)
+		{
+			apu->buf.data[(apu->buf.cur_write % apu->buf.size)] = output;
+			apu->buf.cur_write = apu->buf.cur_write + 1;
+		}
 	}
 }
 
@@ -480,4 +482,10 @@ void NES_APU_CPUWrite(struct APU* apu, uint16_t addr, uint8_t val)
 		}
 		break;
 	}
+}
+
+void NES_APU_Reset(struct APU* apu)
+{
+	apu->buf.cur_write = 0;
+	apu->buf.cur_read = 0;
 }

@@ -15,9 +15,15 @@ static void _AD_AudioCallback(void* udata, Uint8* stream, int len)
         if (app->nes)
         {
             struct APU* apu = app->nes->bus->apu;
-            
-            ustream[i] = apu->buf.data[apu->buf.cur_read] * INT16_MAX;
-            apu->buf.cur_read = (apu->buf.cur_read + 1) % apu->buf.size;
+            if (apu->buf.cur_read < apu->buf.cur_write)
+            {
+                ustream[i] = apu->buf.data[apu->buf.cur_read % apu->buf.size] * INT16_MAX;
+                apu->buf.cur_read = apu->buf.cur_read + 1;
+            }
+            else
+            {
+                ustream[i] = apu->buf.data[(apu->buf.cur_read - 1) % apu->buf.size] * INT16_MAX;
+            }
         }
     }
 }
@@ -56,7 +62,7 @@ struct AppData* AD_Alloc(int w, int h)
 
     result->nes = NES_Alloc(result);
     result->ps1 = PS1_Alloc(result);
-    SDL_PauseAudioDevice(result->audio_device, SDL_TRUE);
+    SDL_PauseAudioDevice(result->audio_device, SDL_FALSE);
 
 	return result;
 }
