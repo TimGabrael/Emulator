@@ -5,7 +5,16 @@
 #include "nes/nes_collection.h"
 #include "ps1/ps1_collection.h"
 
-
+void EmulateNES(struct AppData* app, float dt)
+{
+    SDL_RenderClear(app->renderer);
+    NES_Tick(app, app->nes, dt);
+    SDL_RenderPresent(app->renderer);
+}
+void EmulatePS1(struct AppData* app, float dt)
+{
+    PS1_Tick(app, app->ps1, dt);
+}
 int EmulatorMain(int w, int h)
 {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
@@ -35,15 +44,13 @@ int EmulatorMain(int w, int h)
             else if (event.type == SDL_KEYDOWN) app->keys[event.key.keysym.scancode] = 1;
             else if (event.type == SDL_KEYUP) app->keys[event.key.keysym.scancode] = 0;
         }
-        uint64_t now = SDL_GetPerformanceCounter();
-        SDL_RenderClear(app->renderer);
+        const uint64_t now = SDL_GetPerformanceCounter();
         const float dt = (now - prev) * perf_freq_inv;
         prev = now;
-        NES_Tick(app, app->nes, dt);
-        //PS1_Tick(app, ps1, dt);
+        
+        //EmulateNES(app, dt);
+        EmulatePS1(app, dt);
 
-        // leaving this away is just alot faster for now (PS1)
-        SDL_RenderPresent(app->renderer);
 #ifdef EMSCRIPTEN
         emscripten_sleep(0);
 #endif

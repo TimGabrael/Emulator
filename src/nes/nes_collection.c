@@ -5,6 +5,7 @@
 #include "DataBus.h"
 #include "mapper.h"
 #include "ppu.h"
+#include "apu.h"
 
 struct NES* NES_Alloc(struct AppData* app)
 {
@@ -104,4 +105,20 @@ uint8_t NES_Load(struct NES* nes, uint8_t* data, int sz)
 	NES_DBus_Reset(nes->bus);
 	if (nes->cart) return 1;
 	return 0;
+}
+
+float NES_GetAudioSample(struct NES* nes)
+{
+	float out = 0.0f;
+	struct APU* apu = nes->bus->apu;
+	if (apu->buf.cur_read < apu->buf.cur_write)
+	{
+		out = apu->buf.data[apu->buf.cur_read % apu->buf.size];
+		apu->buf.cur_read = apu->buf.cur_read + 1;
+	}
+	else
+	{
+		out = apu->buf.data[(apu->buf.cur_read - 1) % apu->buf.size];
+	}
+	return out;
 }

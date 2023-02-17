@@ -14,16 +14,7 @@ static void _AD_AudioCallback(void* udata, Uint8* stream, int len)
     {
         if (app->nes)
         {
-            struct APU* apu = app->nes->bus->apu;
-            if (apu->buf.cur_read < apu->buf.cur_write)
-            {
-                ustream[i] = apu->buf.data[apu->buf.cur_read % apu->buf.size] * INT16_MAX;
-                apu->buf.cur_read = apu->buf.cur_read + 1;
-            }
-            else
-            {
-                ustream[i] = apu->buf.data[(apu->buf.cur_read - 1) % apu->buf.size] * INT16_MAX;
-            }
+            ustream[i] = NES_GetAudioSample(app->nes) * INT16_MAX;
         }
     }
 }

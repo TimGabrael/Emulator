@@ -89,7 +89,7 @@ uint32_t PS1_BUS_CpuRead32(struct Bus* bus, uint32_t addr)
 		return 0;
 	}
 	else if (R_Contains(&GPU_RANGE, addr, &mapped)) {
-		LOG("GPU_read: %x\n", addr);
+		LOG("GPU_read: %x %x\n", addr, mapped);
 		if (mapped == 4) return 0x10000000;
 		else return 0;
 	}

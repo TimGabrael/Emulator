@@ -19,3 +19,5 @@ uint8_t NES_Tick(struct AppData* app, struct NES* nes, float dt);
 
 uint8_t NES_LoadFile(struct NES* nes, const char* filename);
 uint8_t NES_Load(struct NES* nes, uint8_t* data, int sz);
+
+float NES_GetAudioSample(struct NES* nes);
