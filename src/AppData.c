@@ -1,13 +1,24 @@
 #include "AppData.h"
 #include <memory.h>
 #include "Helper.h"
+#include "nes/nes_collection.h"
+#include "nes/DataBus.h"
+#include "nes/apu.h"
+#include "ps1/ps1_collection.h"
 
 static void _AD_AudioCallback(void* udata, Uint8* stream, int len)
 {
     struct AppData* app = (struct AppData*)udata;
-    for (int i = 0; i < len; i++)
+    uint16_t* ustream = (uint16_t*)stream;
+    for (int i = 0; i < len / 2; i++)
     {
-        stream[i] = rand();
+        if (app->nes)
+        {
+            struct APU* apu = app->nes->bus->apu;
+            
+            ustream[i] = apu->buf.data[apu->buf.cur_read] * INT16_MAX;
+            apu->buf.cur_read = (apu->buf.cur_read + 1) % apu->buf.size;
+        }
     }
 }
 
@@ -42,6 +53,9 @@ struct AppData* AD_Alloc(int w, int h)
         free(result);
         return NULL;
     }
+
+    result->nes = NES_Alloc(result);
+    result->ps1 = PS1_Alloc(result);
     SDL_PauseAudioDevice(result->audio_device, SDL_TRUE);
 
 	return result;
@@ -52,6 +66,7 @@ void AD_Free(struct AppData** app)
     if (app && *app)
     {
         struct AppData* a = *app;
+        SDL_PauseAudioDevice(a->audio_device, SDL_TRUE);
         SDL_CloseAudioDevice(a->audio_device);
 
         SDL_DestroyRenderer(a->renderer);

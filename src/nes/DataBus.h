@@ -5,6 +5,7 @@ struct DataBus
 {
 	struct PPU* ppu;
 	struct CPU* cpu;
+	struct APU* apu;
 
 	struct Cartridge* cart;
 	uint8_t controller[2];

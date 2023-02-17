@@ -2,7 +2,7 @@
 #include "cpu.h"
 #include "ppu.h"
 #include "cartridge.h"
-
+#include "apu.h"
 
 void NES_DBus_Init(struct DataBus* bus, struct PPU* ppu, struct CPU* cpu)
 {
@@ -10,6 +10,7 @@ void NES_DBus_Init(struct DataBus* bus, struct PPU* ppu, struct CPU* cpu)
 
 	bus->cpu = cpu;
 	bus->ppu = ppu;
+	bus->apu = NES_APU_Alloc(bus, 100000);
 	bus->is_dma_dummy = 1;
 	cpu->bus = bus;
 }
@@ -17,8 +18,8 @@ void NES_DBus_Uninit(struct DataBus* bus)
 {
 	if (bus)
 	{
+		if (bus->apu) NES_APU_Free(&bus->apu);
 		bus->cpu->bus = 0;
-		
 	}
 }
 
@@ -43,6 +44,10 @@ uint8_t NES_DBus_CPURead(struct DataBus* bus, uint16_t addr, uint8_t isReadOnly)
 		data = (bus->controller_state[addr & 0x0001] & 0x80) > 0;
 		bus->controller_state[addr & 0x0001] <<= 1;
 	}
+	else
+	{
+		//ERR_MSG("read from invalid address\n");
+	}
 
 	return data;
 }
@@ -53,13 +58,17 @@ void NES_DBus_CPUWrite(struct DataBus* bus, uint16_t addr, uint8_t data)
 	{
 
 	}
-	else if (addr >= 0x0000 && addr <= 0x1FFF)
+	else if (addr >= 0x0000 && addr < 0x2000)
 	{
 		bus->cpu_ram[addr & 0x07FF] = data;
 	}
-	else if (addr >= 0x2000 && addr <= 0x3FFF)
+	else if (addr <= 0x3FFF)
 	{
 		NES_PPU_CPUWrite(bus->ppu, addr & 0x0007, data);
+	}
+	else if (addr < 0x4014)
+	{
+		NES_APU_CPUWrite(bus->apu, addr, data);
 	}
 	else if (addr == 0x4014)
 	{
@@ -67,9 +76,21 @@ void NES_DBus_CPUWrite(struct DataBus* bus, uint16_t addr, uint8_t data)
 		bus->dma_addr = 0x00;
 		bus->is_dma_transfer = 1;
 	}
+	else if (addr == 0x4015)
+	{
+		NES_APU_CPUWrite(bus->apu, addr, data);
+	}
 	else if (addr >= 0x4016 && addr <= 0x4017)
 	{
 		bus->controller_state[addr & 0x0001] = bus->controller[addr & 0x0001];
+	}
+	else if (addr == 0x4017)
+	{
+		NES_APU_CPUWrite(bus->apu, addr, data);
+	}
+	else
+	{
+		//ERR_MSG("write to invalid address\n");
 	}
 }
 
@@ -110,7 +131,11 @@ void NES_DBus_Clock(struct DataBus* bus)
 		}
 		else
 		{
+			int start_cycles = bus->cpu->cycles;
 			NES_CPU_Clock(bus->cpu);
+			int num_cycles = bus->cpu->cycles - start_cycles + 1;
+			//LOG("num_cycles: %d\n", num_cycles);
+			NES_APU_Clock(bus->apu);
 		}
 	}
 

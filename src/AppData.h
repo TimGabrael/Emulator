@@ -3,6 +3,8 @@
 
 struct AppData
 {
+	struct NES* nes;
+	struct PS1* ps1;
 	SDL_Window* window;
 	SDL_Renderer* renderer;
 	SDL_AudioDeviceID audio_device;
