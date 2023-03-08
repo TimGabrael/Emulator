@@ -3,18 +3,20 @@
 #include "Helper.h"
 #include "AppData.h"
 #include "nes/nes_collection.h"
-#include "ps1/ps1_collection.h"
 
+#include "ps1/ps1_collection.h"
+void EmulatePS1(struct AppData* app, float dt)
+{
+    PS1_Tick(app, app->ps1, dt);
+}
 void EmulateNES(struct AppData* app, float dt)
 {
     SDL_RenderClear(app->renderer);
     NES_Tick(app, app->nes, dt);
     SDL_RenderPresent(app->renderer);
 }
-void EmulatePS1(struct AppData* app, float dt)
-{
-    PS1_Tick(app, app->ps1, dt);
-}
+
+struct AppData* app = 0;
 int EmulatorMain(int w, int h)
 {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
@@ -22,7 +24,7 @@ int EmulatorMain(int w, int h)
         return -1;
     }
 
-    struct AppData* app = AD_Alloc(w, h);
+    app = AD_Alloc(w, h);
     
     const float perf_freq_inv = 1.0f / (float)SDL_GetPerformanceFrequency();
     uint64_t prev = SDL_GetPerformanceCounter();
@@ -48,8 +50,8 @@ int EmulatorMain(int w, int h)
         const float dt = (now - prev) * perf_freq_inv;
         prev = now;
         
-        //EmulateNES(app, dt);
-        EmulatePS1(app, dt);
+        EmulateNES(app, dt);
+        //EmulatePS1(app, dt);
 
 #ifdef EMSCRIPTEN
         emscripten_sleep(0);
@@ -89,7 +91,7 @@ int main(int argv, char** argc)
 
 EMSCRIPTEN_KEEPALIVE void AddFile()
 {
-    NES_LoadFile(nes, "nes_file.nes");
+    NES_LoadFile(app->nes, "nes_file.nes");
 }
 
 #else

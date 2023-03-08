@@ -14,7 +14,7 @@ static void _AD_AudioCallback(void* udata, Uint8* stream, int len)
     {
         if (app->nes)
         {
-            ustream[i] = NES_GetAudioSample(app->nes) * INT16_MAX;
+            ustream[i] = (uint16_t)(NES_GetAudioSample(app->nes) * INT16_MAX);
         }
     }
 }
@@ -53,6 +53,7 @@ struct AppData* AD_Alloc(int w, int h)
 
     result->nes = NES_Alloc(result);
     result->ps1 = PS1_Alloc(result);
+
     SDL_PauseAudioDevice(result->audio_device, SDL_FALSE);
 
 	return result;

@@ -1,5 +1,6 @@
 #pragma once
 #include "../Helper.h"
+#include "../AppData.h"
 
 struct PS1
 {
